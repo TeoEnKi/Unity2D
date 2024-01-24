@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.EventSystems;
-using UnityEngine.Profiling;
 
 public class FlockBehaviour : MonoBehaviour
 {
@@ -15,6 +14,11 @@ public class FlockBehaviour : MonoBehaviour
 
     [SerializeField]
     BoxCollider2D Bounds;
+    float bounds_maxX;
+    float bounds_minX;
+    float bounds_maxY;
+    float bounds_minY;
+
 
     public float TickDuration = 1.0f;
     public float TickDurationSeparationEnemy = 0.1f;
@@ -28,6 +32,7 @@ public class FlockBehaviour : MonoBehaviour
 
     [SerializeField] GameObject preinitBoids;
     List<Autonomous> unusedBoids = new List<Autonomous>();
+
     void Reset()
     {
         flocks = new List<Flock>()
@@ -38,6 +43,11 @@ public class FlockBehaviour : MonoBehaviour
 
     void Start()
     {
+        bounds_maxX = Bounds.bounds.max.x;
+        bounds_minX = Bounds.bounds.min.x;
+        bounds_maxY = Bounds.bounds.max.y;
+        bounds_minY = Bounds.bounds.min.y;
+
         foreach (Transform preinitBoid in preinitBoids.transform)
         {
             if (preinitBoid.transform.GetComponent<Autonomous>() != null)
@@ -183,15 +193,15 @@ public class FlockBehaviour : MonoBehaviour
         Vector3 steerPos = Vector3.zero;
 
         Autonomous curr = flock.mAutonomous[i];
-        for (int j = 0; j < flock.numBoids; ++j)
+        Parallel.For(0, flock.numBoids, j =>
         {
             Autonomous other = flock.mAutonomous[j];
-            float dist = (curr.transform.position - other.transform.position).magnitude;
+            float dist = (curr.predictedPos - other.predictedPos).magnitude;
             if (i != j && dist < flock.visibility)
             {
                 speed += other.Speed;
                 flockDir += other.TargetDirection;
-                steerPos += other.transform.position;
+                steerPos += other.predictedPos;
                 count++;
             }
             if (i != j)
@@ -199,14 +209,38 @@ public class FlockBehaviour : MonoBehaviour
                 if (dist < flock.separationDistance)
                 {
                     Vector3 targetDirection = (
-                      curr.transform.position -
-                      other.transform.position).normalized;
+                      curr.predictedPos -
+                      other.predictedPos).normalized;
 
                     separationDir += targetDirection;
                     separationSpeed += dist * flock.weightSeparation;
                 }
             }
-        }
+        });
+        //for (int j = 0; j < flock.numBoids; ++j)
+        //{
+        //    Autonomous other = flock.mAutonomous[j];
+        //    float dist = (curr.transform.position - other.transform.position).magnitude;
+        //    if (i != j && dist < flock.visibility)
+        //    {
+        //        speed += other.Speed;
+        //        flockDir += other.TargetDirection;
+        //        steerPos += other.transform.position;
+        //        count++;
+        //    }
+        //    if (i != j)
+        //    {
+        //        if (dist < flock.separationDistance)
+        //        {
+        //            Vector3 targetDirection = (
+        //              curr.transform.position -
+        //              other.transform.position).normalized;
+
+        //            separationDir += targetDirection;
+        //            separationSpeed += dist * flock.weightSeparation;
+        //        }
+        //    }
+        //}
         if (count > 0)
         {
             speed = speed / count;
@@ -226,7 +260,7 @@ public class FlockBehaviour : MonoBehaviour
         curr.TargetDirection =
           flockDir * speed * (flock.useAlignmentRule ? flock.weightAlignment : 0.0f) +
           separationDir * separationSpeed * (flock.useSeparationRule ? flock.weightSeparation : 0.0f) +
-          (steerPos - curr.transform.position) * (flock.useCohesionRule ? flock.weightCohesion : 0.0f);
+          (steerPos - curr.predictedPos) * (flock.useCohesionRule ? flock.weightCohesion : 0.0f);
     }
 
 
@@ -240,20 +274,21 @@ public class FlockBehaviour : MonoBehaviour
                 foreach (Flock flock in flocks)
                 {
                     List<Autonomous> autonomousList = flock.mAutonomous;
-                    //parallel.for
-                    for (int i = 0; i < autonomousList.Count; ++i)
+                    Parallel.For(0, autonomousList.Count, i =>
                     {
-                        Profiler.BeginSample("Execute(flock, i)");
                         Execute(flock, i);
-                        Profiler.EndSample();
-                        if (i % BatchSize == 0)
-                        {
-                            //run in next frame after execute is runned a number of times
-                            yield return null;
-                        }
-                    }
-                    //run in next frame
-                    yield return null;
+                    });
+                    //for (int i = 0; i < autonomousList.Count; ++i)
+                    //{
+                    //    Execute(flock, i);
+                    //    //if (i % BatchSize == 0)
+                    //    //{
+                    //    //    //run in next frame after execute is runned a number of times
+                    //    //    yield return null;
+                    //    //}
+                    //}
+                    //////run in next frame
+                    ////yield return null;
                 }
             }
             //run next while loop after tickduration
@@ -273,13 +308,13 @@ public class FlockBehaviour : MonoBehaviour
             for (int j = 0; j < enemies.Count; ++j)
             {
                 float dist = (
-                  enemies[j].transform.position -
-                  boids[i].transform.position).magnitude;
+                  enemies[j].predictedPos -
+                  boids[i].predictedPos).magnitude;
                 if (dist < sepDist)
                 {
                     Vector3 targetDirection = (
-                      boids[i].transform.position -
-                      enemies[j].transform.position).normalized;
+                      boids[i].predictedPos -
+                      enemies[j].predictedPos).normalized;
 
                     boids[i].TargetDirection += targetDirection;
                     boids[i].TargetDirection.Normalize();
@@ -330,11 +365,11 @@ public class FlockBehaviour : MonoBehaviour
                         {
                             float dist = (
                               mObstacles[j].transform.position -
-                              autonomousList[i].transform.position).magnitude;
+                              autonomousList[i].predictedPos).magnitude;
                             if (dist < mObstacles[j].AvoidanceRadius)
                             {
                                 Vector3 targetDirection = (
-                                  autonomousList[i].transform.position -
+                                  autonomousList[i].predictedPos -
                                   mObstacles[j].transform.position).normalized;
 
                                 autonomousList[i].TargetDirection += targetDirection * flock.weightAvoidObstacles;
@@ -428,24 +463,24 @@ public class FlockBehaviour : MonoBehaviour
         for (int i = 0; i < Obstacles.Length; ++i)
         {
             Autonomous autono = Obstacles[i].GetComponent<Autonomous>();
-            Vector3 pos = autono.transform.position;
-            if (autono.transform.position.x > Bounds.bounds.max.x)
+            Vector3 pos = autono.predictedPos;
+            if (autono.predictedPos.x > Bounds.bounds.max.x)
             {
                 pos.x = Bounds.bounds.min.x;
             }
-            if (autono.transform.position.x < Bounds.bounds.min.x)
+            if (autono.predictedPos.x < Bounds.bounds.min.x)
             {
                 pos.x = Bounds.bounds.max.x;
             }
-            if (autono.transform.position.y > Bounds.bounds.max.y)
+            if (autono.predictedPos.y > Bounds.bounds.max.y)
             {
                 pos.y = Bounds.bounds.min.y;
             }
-            if (autono.transform.position.y < Bounds.bounds.min.y)
+            if (autono.predictedPos.y < Bounds.bounds.min.y)
             {
                 pos.y = Bounds.bounds.max.y;
             }
-            autono.transform.position = pos;
+            autono.predictedPos = pos;
         }
 
         //for (int i = 0; i < Obstacles.Length; ++i)
@@ -479,51 +514,95 @@ public class FlockBehaviour : MonoBehaviour
             List<Autonomous> autonomousList = flock.mAutonomous;
             if (flock.bounceWall)
             {
-                for (int i = 0; i < autonomousList.Count; ++i)
+                Parallel.For(0, autonomousList.Count, i =>
                 {
-                    Vector3 pos = autonomousList[i].transform.position;
-                    if (autonomousList[i].transform.position.x + 5.0f > Bounds.bounds.max.x)
+                    Vector3 pos = autonomousList[i].predictedPos;
+                    if (autonomousList[i].predictedPos.x + 5.0f > bounds_maxX)
                     {
                         autonomousList[i].TargetDirection.x = -1.0f;
                     }
-                    if (autonomousList[i].transform.position.x - 5.0f < Bounds.bounds.min.x)
+                    if (autonomousList[i].predictedPos.x - 5.0f < bounds_minX)
                     {
                         autonomousList[i].TargetDirection.x = 1.0f;
                     }
-                    if (autonomousList[i].transform.position.y + 5.0f > Bounds.bounds.max.y)
+                    if (autonomousList[i].predictedPos.y + 5.0f > bounds_maxY)
                     {
                         autonomousList[i].TargetDirection.y = -1.0f;
                     }
-                    if (autonomousList[i].transform.position.y - 5.0f < Bounds.bounds.min.y)
+                    if (autonomousList[i].predictedPos.y - 5.0f < bounds_minY)
                     {
                         autonomousList[i].TargetDirection.y = 1.0f;
                     }
                     autonomousList[i].TargetDirection.Normalize();
-                }
+                });
+                //for (int i = 0; i < autonomousList.Count; ++i)
+                //{
+                //    Vector3 pos = autonomousList[i].transform.position;
+                //    if (autonomousList[i].transform.position.x + 5.0f > Bounds.bounds.max.x)
+                //    {
+                //        autonomousList[i].TargetDirection.x = -1.0f;
+                //    }
+                //    if (autonomousList[i].transform.position.x - 5.0f < Bounds.bounds.min.x)
+                //    {
+                //        autonomousList[i].TargetDirection.x = 1.0f;
+                //    }
+                //    if (autonomousList[i].transform.position.y + 5.0f > Bounds.bounds.max.y)
+                //    {
+                //        autonomousList[i].TargetDirection.y = -1.0f;
+                //    }
+                //    if (autonomousList[i].transform.position.y - 5.0f < Bounds.bounds.min.y)
+                //    {
+                //        autonomousList[i].TargetDirection.y = 1.0f;
+                //    }
+                //    autonomousList[i].TargetDirection.Normalize();
+                //}
             }
             else
             {
-                for (int i = 0; i < autonomousList.Count; ++i)
-                {
-                    Vector3 pos = autonomousList[i].transform.position;
-                    if (autonomousList[i].transform.position.x > Bounds.bounds.max.x)
+                Parallel.For(0, autonomousList.Count, i => 
+                { 
+                    Vector3 pos = autonomousList[i].predictedPos;
+                    if (autonomousList[i].predictedPos.x > bounds_maxX)
                     {
-                        pos.x = Bounds.bounds.min.x;
+                        pos.x = bounds_minX;
                     }
-                    if (autonomousList[i].transform.position.x < Bounds.bounds.min.x)
+                    if (autonomousList[i].predictedPos.x < bounds_minX)
                     {
-                        pos.x = Bounds.bounds.max.x;
+                        pos.x = bounds_maxX;
                     }
-                    if (autonomousList[i].transform.position.y > Bounds.bounds.max.y)
+                    if (autonomousList[i].predictedPos.y > bounds_maxY)
                     {
-                        pos.y = Bounds.bounds.min.y;
+                        pos.y = bounds_minY;
                     }
-                    if (autonomousList[i].transform.position.y < Bounds.bounds.min.y)
+                    if (autonomousList[i].predictedPos.y < bounds_minY)
                     {
-                        pos.y = Bounds.bounds.max.y;
+                        pos.y = bounds_maxY;
                     }
-                    autonomousList[i].transform.position = pos;
-                }
+                    autonomousList[i].predictedPos = pos;
+                });
+
+
+                //for (int i = 0; i < autonomousList.Count; ++i)
+                //{
+                //    Vector3 pos = autonomousList[i].transform.position;
+                //    if (autonomousList[i].transform.position.x > Bounds.bounds.max.x)
+                //    {
+                //        pos.x = Bounds.bounds.min.x;
+                //    }
+                //    if (autonomousList[i].transform.position.x < Bounds.bounds.min.x)
+                //    {
+                //        pos.x = Bounds.bounds.max.x;
+                //    }
+                //    if (autonomousList[i].transform.position.y > Bounds.bounds.max.y)
+                //    {
+                //        pos.y = Bounds.bounds.min.y;
+                //    }
+                //    if (autonomousList[i].transform.position.y < Bounds.bounds.min.y)
+                //    {
+                //        pos.y = Bounds.bounds.max.y;
+                //    }
+                //    autonomousList[i].transform.position = pos;
+                //}
             }
         }
     }
@@ -543,7 +622,7 @@ public class FlockBehaviour : MonoBehaviour
         Parallel.For(0, autoList.Count, i =>
         {
             //converting the world position to a cell id
-            (int cellX, int cellY) = PositionToCellCoord(autoList[i].transform.position, radius);
+            (int cellX, int cellY) = PositionToCellCoord(autoList[i].predictedPos, radius);
             //hash the cell id to get a hash cell key
             //cell Key must be non-negative
             uint cellKey = GetHashCellKey(spatialLookup, HashCell(cellX, cellY));
@@ -562,7 +641,7 @@ public class FlockBehaviour : MonoBehaviour
             uint keyPrev = i == 0 ? uint.MaxValue : spatialLookup[i - 1].hashCellKey;
             if (key != keyPrev)
             {
-                startIds[(int) key] = i;
+                startIds[(int)key] = i;
             }
         });
 
@@ -576,7 +655,7 @@ public class FlockBehaviour : MonoBehaviour
 
         return (cellX, cellY);
     }
-    
+
     private uint HashCell(int cellX, int cellY)
     {
         uint a = (uint)cellX * 15823;
