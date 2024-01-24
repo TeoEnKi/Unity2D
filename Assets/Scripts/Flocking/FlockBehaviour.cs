@@ -1,5 +1,7 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Profiling;
@@ -43,11 +45,11 @@ public class FlockBehaviour : MonoBehaviour
                 unusedBoids.Add(preinitBoid.transform.GetComponent<Autonomous>());
             }
         }
-    // Randomize obstacles placement.
-    for (int i = 0; i < Obstacles.Length; ++i)
+        // Randomize obstacles placement.
+        for (int i = 0; i < Obstacles.Length; ++i)
         {
-            float x = Random.Range(Bounds.bounds.min.x, Bounds.bounds.max.x);
-            float y = Random.Range(Bounds.bounds.min.y, Bounds.bounds.max.y);
+            float x = UnityEngine.Random.Range(Bounds.bounds.min.x, Bounds.bounds.max.x);
+            float y = UnityEngine.Random.Range(Bounds.bounds.min.y, Bounds.bounds.max.y);
             Obstacles[i].transform.position = new Vector3(x, y, 0.0f);
             Obstacle obs = Obstacles[i].AddComponent<Obstacle>();
             Autonomous autono = Obstacles[i].AddComponent<Autonomous>();
@@ -73,8 +75,8 @@ public class FlockBehaviour : MonoBehaviour
     {
         for (int i = 0; i < flock.numBoids; ++i)
         {
-            float x = Random.Range(Bounds.bounds.min.x, Bounds.bounds.max.x);
-            float y = Random.Range(Bounds.bounds.min.y, Bounds.bounds.max.y);
+            float x = UnityEngine.Random.Range(Bounds.bounds.min.x, Bounds.bounds.max.x);
+            float y = UnityEngine.Random.Range(Bounds.bounds.min.y, Bounds.bounds.max.y);
 
             AddBoid(x, y, flock);
         }
@@ -82,6 +84,8 @@ public class FlockBehaviour : MonoBehaviour
 
     void Update()
     {
+        (boids_SpatialLookup, boids_StartIds) = UpdateSpatialLookup(flocks[0].mAutonomous, boids_SpatialLookup, boids_StartIds, flocks[0].separationDistance);
+        (enemies_SpatialLookup, enemies_StartIds) = UpdateSpatialLookup(flocks[1].mAutonomous, enemies_SpatialLookup, enemies_StartIds, flocks[0].separationDistance);
         HandleInputs();
         Rule_CrossBorder();
         Rule_CrossBorder_Obstacles();
@@ -97,6 +101,7 @@ public class FlockBehaviour : MonoBehaviour
 
         if (Input.GetKeyDown(KeyCode.Space))
         {
+            //if no more pre-init boids, instantiate them
             if (unusedBoids.Count == 0)
             {
                 AddBoids(BoidIncr);
@@ -115,11 +120,11 @@ public class FlockBehaviour : MonoBehaviour
             if (unusedBoids.Count == 0)
             {
                 AddBoids(count - i);
-                    return; 
+                return;
 
             }
-            float x = Random.Range(Bounds.bounds.min.x, Bounds.bounds.max.x);
-            float y = Random.Range(Bounds.bounds.min.y, Bounds.bounds.max.y);
+            float x = UnityEngine.Random.Range(Bounds.bounds.min.x, Bounds.bounds.max.x);
+            float y = UnityEngine.Random.Range(Bounds.bounds.min.y, Bounds.bounds.max.y);
 
             unusedBoids[0].gameObject.SetActive(true);
             unusedBoids[0].name = "Boid_" + flock.name + "_" + flock.mAutonomous.Count;
@@ -128,6 +133,8 @@ public class FlockBehaviour : MonoBehaviour
             flock.mAutonomous.Add(boid);
             boid.MaxSpeed = flock.maxSpeed;
             boid.RotationSpeed = flock.maxRotationSpeed;
+
+            //remove the preinit boid from the group of unused preinit boids
             unusedBoids[0].transform.parent = null;
             unusedBoids.RemoveAt(0);
         }
@@ -138,8 +145,8 @@ public class FlockBehaviour : MonoBehaviour
     {
         for (int i = 0; i < count; ++i)
         {
-            float x = Random.Range(Bounds.bounds.min.x, Bounds.bounds.max.x);
-            float y = Random.Range(Bounds.bounds.min.y, Bounds.bounds.max.y);
+            float x = UnityEngine.Random.Range(Bounds.bounds.min.x, Bounds.bounds.max.x);
+            float y = UnityEngine.Random.Range(Bounds.bounds.min.y, Bounds.bounds.max.y);
 
             AddBoid(x, y, flocks[0]);
         }
@@ -347,7 +354,7 @@ public class FlockBehaviour : MonoBehaviour
             for (int i = 0; i < Obstacles.Length; ++i)
             {
                 Autonomous autono = Obstacles[i].GetComponent<Autonomous>();
-                float rand = Random.Range(0.0f, 1.0f);
+                float rand = UnityEngine.Random.Range(0.0f, 1.0f);
                 autono.TargetDirection.Normalize();
                 float angle = Mathf.Atan2(autono.TargetDirection.y, autono.TargetDirection.x);
 
@@ -367,7 +374,7 @@ public class FlockBehaviour : MonoBehaviour
                 autono.TargetDirection.Normalize();
                 //Debug.Log(autonomousList[i].TargetDirection);
 
-                float speed = Random.Range(1.0f, autono.MaxSpeed);
+                float speed = UnityEngine.Random.Range(1.0f, autono.MaxSpeed);
                 autono.TargetSpeed += speed;
                 autono.TargetSpeed /= 2.0f;
             }
@@ -385,7 +392,7 @@ public class FlockBehaviour : MonoBehaviour
                     List<Autonomous> autonomousList = flock.mAutonomous;
                     for (int i = 0; i < autonomousList.Count; ++i)
                     {
-                        float rand = Random.Range(0.0f, 1.0f);
+                        float rand = UnityEngine.Random.Range(0.0f, 1.0f);
                         autonomousList[i].TargetDirection.Normalize();
                         float angle = Mathf.Atan2(autonomousList[i].TargetDirection.y, autonomousList[i].TargetDirection.x);
 
@@ -405,7 +412,7 @@ public class FlockBehaviour : MonoBehaviour
                         autonomousList[i].TargetDirection.Normalize();
                         //Debug.Log(autonomousList[i].TargetDirection);
 
-                        float speed = Random.Range(1.0f, autonomousList[i].MaxSpeed);
+                        float speed = UnityEngine.Random.Range(1.0f, autonomousList[i].MaxSpeed);
                         autonomousList[i].TargetSpeed += speed * flock.weightSeparation;
                         autonomousList[i].TargetSpeed /= 2.0f;
                     }
@@ -518,5 +525,88 @@ public class FlockBehaviour : MonoBehaviour
                 }
             }
         }
+    }
+    //containing the list of auto id and its cellkey
+    List<Entry> boids_SpatialLookup = new List<Entry>();
+    //using the cell key, get the value of element (cell id) to know where that list of auto that are in the same cell start
+    List<int> boids_StartIds = new List<int>();
+    //combine the list from both flocks to use as an argueent
+
+    List<Entry> enemies_SpatialLookup = new List<Entry>();
+    //using the cell key, get the value of element (cell id) to know where that list of auto that are in the same cell start
+    List<int> enemies_StartIds = new List<int>();
+
+    private (List<Entry> spatialLookup, List<int> startIds) UpdateSpatialLookup(List<Autonomous> autoList, List<Entry> spatialLookup, List<int> startIds, float radius)
+    {
+        //multithreading the tasks 
+        Parallel.For(0, autoList.Count, i =>
+        {
+            //converting the world position to a cell id
+            (int cellX, int cellY) = PositionToCellCoord(autoList[i].transform.position, radius);
+            //hash the cell id to get a hash cell key
+            //cell Key must be non-negative
+            uint cellKey = GetHashCellKey(spatialLookup, HashCell(cellX, cellY));
+            spatialLookup[i] = new Entry(i, cellKey);
+            //reset the values in the list of start indices
+            startIds[i] = int.MaxValue;
+        });
+
+        //sort by hashCellkey
+        spatialLookup.Sort();
+
+        //find the start indices and of each hashcellkey in the spatial lookup
+        Parallel.For(0, autoList.Count, i =>
+        {
+            uint key = spatialLookup[i].hashCellKey;
+            uint keyPrev = i == 0 ? uint.MaxValue : spatialLookup[i - 1].hashCellKey;
+            if (key != keyPrev)
+            {
+                startIds[(int) key] = i;
+            }
+        });
+
+        return (spatialLookup, startIds);
+    }
+
+    private (int cellX, int cellY) PositionToCellCoord(Vector3 pos, float radius)
+    {
+        int cellX = (int)(pos.x / radius);
+        int cellY = (int)(pos.y / radius);
+
+        return (cellX, cellY);
+    }
+    
+    private uint HashCell(int cellX, int cellY)
+    {
+        uint a = (uint)cellX * 15823;
+        uint b = (uint)cellY * 9737333;
+
+        return a + b;
+    }
+
+    private uint GetHashCellKey(List<Entry> spatialLookup, uint hashCell)
+    {
+        return hashCell % (uint)spatialLookup.Count;
+    }
+
+}
+
+internal class Entry : IComparable<Entry>
+{
+    public int i;
+    public uint hashCellKey;
+
+    public Entry(int i, uint hashCellKey)
+    {
+        this.i = i;
+        this.hashCellKey = hashCellKey;
+    }
+    public int CompareTo(Entry other)
+    {
+        if (other == null)
+        {
+            return 1;
+        }
+        return hashCellKey.CompareTo(other.hashCellKey);
     }
 }
