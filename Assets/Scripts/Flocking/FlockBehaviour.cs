@@ -84,8 +84,8 @@ public class FlockBehaviour : MonoBehaviour
 
     void Update()
     {
-        (boids_SpatialLookup, boids_StartIds) = UpdateSpatialLookup(flocks[0].mAutonomous, boids_SpatialLookup, boids_StartIds, flocks[0].separationDistance);
-        (enemies_SpatialLookup, enemies_StartIds) = UpdateSpatialLookup(flocks[1].mAutonomous, enemies_SpatialLookup, enemies_StartIds, flocks[0].separationDistance);
+        //(boids_SpatialLookup, boids_StartIds) = UpdateSpatialLookup(flocks[0].mAutonomous, boids_SpatialLookup, boids_StartIds, flocks[0].separationDistance);
+        //(enemies_SpatialLookup, enemies_StartIds) = UpdateSpatialLookup(flocks[1].mAutonomous, enemies_SpatialLookup, enemies_StartIds, flocks[0].separationDistance);
         HandleInputs();
         Rule_CrossBorder();
         Rule_CrossBorder_Obstacles();
@@ -240,6 +240,7 @@ public class FlockBehaviour : MonoBehaviour
                 foreach (Flock flock in flocks)
                 {
                     List<Autonomous> autonomousList = flock.mAutonomous;
+                    //parallel.for
                     for (int i = 0; i < autonomousList.Count; ++i)
                     {
                         Profiler.BeginSample("Execute(flock, i)");
