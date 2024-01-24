@@ -13,8 +13,8 @@ public class Autonomous : MonoBehaviour
 
     public Vector2 accel = new Vector2(0.0f, 0.0f);
 
-    //to 
-    public Vector3 predictedPos;
+    //to use in parallel.for temp holder for object's position
+    public Vector3 pos;
 
     public float TargetSpeed = 0.0f;
     public Vector3 TargetDirection = Vector3.zero;
@@ -25,7 +25,7 @@ public class Autonomous : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        predictedPos = transform.position;
+        pos = transform.position;
 
         Speed = 0.0f;
         SetRandomSpeed();
@@ -75,7 +75,7 @@ public class Autonomous : MonoBehaviour
             Speed = MaxSpeed;
 
         transform.Translate(Vector3.right * Speed * Time.deltaTime, Space.Self);
-        predictedPos = transform.position;
+        pos = transform.position;
     }
 
     private void FixedUpdate()
