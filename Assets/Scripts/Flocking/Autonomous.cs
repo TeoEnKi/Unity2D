@@ -53,6 +53,7 @@ public class Autonomous : MonoBehaviour
     // Update is called once per frame
     public void Update()
     {
+
         Vector3 targetDirection = TargetDirection;
         targetDirection.Normalize();
 
@@ -75,6 +76,7 @@ public class Autonomous : MonoBehaviour
             Speed = MaxSpeed;
 
         transform.Translate(Vector3.right * Speed * Time.deltaTime, Space.Self);
+        //update pos
         pos = transform.position;
     }
 

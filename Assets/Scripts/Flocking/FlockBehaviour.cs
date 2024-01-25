@@ -33,6 +33,13 @@ public class FlockBehaviour : MonoBehaviour
     [SerializeField] GameObject preinitBoids;
     List<Autonomous> unusedBoids = new List<Autonomous>();
 
+    //containing the list of auto id and its cellkey
+    List<Entry> boids_SpatialLookup = new List<Entry>();
+    //using the cell key, get the value of element (cell id) to know where that list of auto that are in the same cell start
+    List<int> boids_StartIds = new List<int>();
+    //combine the list from both flocks to use as an argument
+
+
     void Reset()
     {
         flocks = new List<Flock>()
@@ -90,13 +97,15 @@ public class FlockBehaviour : MonoBehaviour
 
             AddBoid(x, y, flock);
         }
+        (boids_SpatialLookup, boids_StartIds) = UpdateSpatialLookup(flocks[0], boids_SpatialLookup, boids_StartIds);
+
     }
 
     void Update()
     {
-        //(boids_SpatialLookup, boids_StartIds) = UpdateSpatialLookup(flocks[0].mAutonomous, boids_SpatialLookup, boids_StartIds, flocks[0].separationDistance);
         //(enemies_SpatialLookup, enemies_StartIds) = UpdateSpatialLookup(flocks[1].mAutonomous, enemies_SpatialLookup, enemies_StartIds, flocks[0].separationDistance);
         HandleInputs();
+        (boids_SpatialLookup, boids_StartIds) = UpdateSpatialLookup(flocks[0], boids_SpatialLookup, boids_StartIds);
         Rule_CrossBorder();
         Rule_CrossBorder_Obstacles();
     }
@@ -120,6 +129,7 @@ public class FlockBehaviour : MonoBehaviour
             {
                 EnablePreinitBoids(BoidIncr, flocks[0]);
             }
+
         }
     }
 
@@ -172,13 +182,14 @@ public class FlockBehaviour : MonoBehaviour
         flock.mAutonomous.Add(boid);
         boid.MaxSpeed = flock.maxSpeed;
         boid.RotationSpeed = flock.maxRotationSpeed;
+
     }
 
     static float Distance(Autonomous a1, Autonomous a2)
     {
         return (a1.transform.position - a2.transform.position).magnitude;
     }
-
+    //spatial
     void Execute(Flock flock, int i)
     {
         Vector3 flockDir = Vector3.zero;
@@ -193,18 +204,23 @@ public class FlockBehaviour : MonoBehaviour
         Vector3 steerPos = Vector3.zero;
 
         Autonomous curr = flock.mAutonomous[i];
-        Parallel.For(0, flock.numBoids, j =>
+
+        List<int> neighboursIdList = NeighbouringBoidsFromPoint(curr.pos, flock, boids_SpatialLookup, boids_StartIds);
+        Parallel.For(0, neighboursIdList.Count, j =>
         {
-            Autonomous other = flock.mAutonomous[j];
+            Autonomous other = flock.mAutonomous[neighboursIdList[j]];
             float dist = (curr.pos - other.pos).magnitude;
-            if (i != j && dist < flock.visibility)
+
+            //if other is near 
+            if (i != neighboursIdList[j] && dist < flock.visibility)
             {
                 speed += other.Speed;
                 flockDir += other.TargetDirection;
                 steerPos += other.pos;
                 count++;
+
             }
-            if (i != j)
+            if (i != neighboursIdList[j])
             {
                 if (dist < flock.separationDistance)
                 {
@@ -296,34 +312,56 @@ public class FlockBehaviour : MonoBehaviour
         }
     }
 
-
+    //spatial
     void SeparationWithEnemies_Internal(
-      List<Autonomous> boids,
-      List<Autonomous> enemies,
+      Flock boids,
+      Flock enemies,
       float sepDist,
       float sepWeight)
     {
-        for (int i = 0; i < boids.Count; ++i)
+        Parallel.For(0, enemies.mAutonomous.Count, j =>
         {
-            for (int j = 0; j < enemies.Count; ++j)
+            List<int> neighbourBoidIds = NeighbouringBoidsFromPoint(enemies.mAutonomous[j].pos, boids, boids_SpatialLookup, boids_StartIds);
+            Parallel.For(0, neighbourBoidIds.Count, i =>
             {
                 float dist = (
-                  enemies[j].pos -
-                  boids[i].pos).magnitude;
+                  enemies.mAutonomous[j].pos -
+                  boids.mAutonomous[neighbourBoidIds[i]].pos).magnitude;
                 if (dist < sepDist)
                 {
                     Vector3 targetDirection = (
-                      boids[i].pos -
-                      enemies[j].pos).normalized;
+                      boids.mAutonomous[neighbourBoidIds[i]].pos -
+                      enemies.mAutonomous[j].pos).normalized;
 
-                    boids[i].TargetDirection += targetDirection;
-                    boids[i].TargetDirection.Normalize();
+                    boids.mAutonomous[neighbourBoidIds[i]].TargetDirection += targetDirection;
+                    boids.mAutonomous[neighbourBoidIds[i]].TargetDirection.Normalize();
 
-                    boids[i].TargetSpeed += dist * sepWeight;
-                    boids[i].TargetSpeed /= 2.0f;
+                    boids.mAutonomous[neighbourBoidIds[i]].TargetSpeed += dist * sepWeight;
+                    boids.mAutonomous[neighbourBoidIds[i]].TargetSpeed /= 2.0f;
                 }
-            }
-        }
+            });
+        });
+        //for (int i = 0; i < boids.mAutonomous.Count; ++i)
+        //{
+        //    for (int j = 0; j < enemies.mAutonomous.Count; ++j)
+        //    {
+        //        float dist = (
+        //          enemies.mAutonomous[j].pos -
+        //          boids.mAutonomous[i].pos).magnitude;
+        //        if (dist < sepDist)
+        //        {
+        //            Vector3 targetDirection = (
+        //              boids.mAutonomous[i].pos -
+        //              enemies.mAutonomous[j].pos).normalized;
+
+        //            boids.mAutonomous[i].TargetDirection += targetDirection;
+        //            boids.mAutonomous[i].TargetDirection.Normalize();
+
+        //            boids.mAutonomous[i].TargetSpeed += dist * sepWeight;
+        //            boids.mAutonomous[i].TargetSpeed /= 2.0f;
+        //        }
+        //    }
+        //}
     }
 
     IEnumerator Coroutine_SeparationWithEnemies()
@@ -339,8 +377,8 @@ public class FlockBehaviour : MonoBehaviour
                     if (!enemies.isPredator) continue;
 
                     SeparationWithEnemies_Internal(
-                      flock.mAutonomous,
-                      enemies.mAutonomous,
+                      flock,
+                      enemies,
                       flock.enemySeparationDistance,
                       flock.weightFleeOnSightEnemy);
                 }
@@ -349,7 +387,7 @@ public class FlockBehaviour : MonoBehaviour
             yield return null;
         }
     }
-
+    //spatial
     IEnumerator Coroutine_AvoidObstacles()
     {
         while (true)
@@ -359,28 +397,54 @@ public class FlockBehaviour : MonoBehaviour
                 if (flock.useAvoidObstaclesRule)
                 {
                     List<Autonomous> autonomousList = flock.mAutonomous;
-                    for (int i = 0; i < autonomousList.Count; ++i)
-                    {
-                        for (int j = 0; j < mObstacles.Count; ++j)
-                        {
-                            float dist = (
-                              mObstacles[j].transform.position -
-                              autonomousList[i].pos).magnitude;
-                            if (dist < mObstacles[j].AvoidanceRadius)
-                            {
-                                Vector3 targetDirection = (
-                                  autonomousList[i].pos -
-                                  mObstacles[j].transform.position).normalized;
 
-                                autonomousList[i].TargetDirection += targetDirection * flock.weightAvoidObstacles;
-                                autonomousList[i].TargetDirection.Normalize();
+                    if (!flock.isPredator)
+                    {
+                        Parallel.For(0, mObstacles.Count, j =>
+                        {
+                            List<int> neighbourBoidIds = NeighbouringBoidsFromPoint(mObstacles[j].pos, flock, boids_SpatialLookup, boids_StartIds);
+                            Parallel.For(0, neighbourBoidIds.Count, i =>
+                            {
+                                float dist = (
+                                    mObstacles[j].pos -
+                                    autonomousList[neighbourBoidIds[i]].pos).magnitude;
+                                if (dist < mObstacles[j].avoidanceRadius)
+                                {
+                                    Vector3 targetDirection = (
+                                      autonomousList[neighbourBoidIds[i]].pos -
+                                      mObstacles[j].pos).normalized;
+
+                                    autonomousList[neighbourBoidIds[i]].TargetDirection += targetDirection * flock.weightAvoidObstacles;
+                                    autonomousList[neighbourBoidIds[i]].TargetDirection.Normalize();
+                                }
+                            });
+                        });
+                    }
+                    else
+                    {
+                        for (int i = 0; i < autonomousList.Count; ++i)
+                        {
+                            for (int j = 0; j < mObstacles.Count; ++j)
+                            {
+                                float dist = (
+                                  mObstacles[j].transform.position -
+                                  autonomousList[i].pos).magnitude;
+                                if (dist < mObstacles[j].avoidanceRadius)
+                                {
+                                    Vector3 targetDirection = (
+                                      autonomousList[i].pos -
+                                      mObstacles[j].transform.position).normalized;
+
+                                    autonomousList[i].TargetDirection += targetDirection * flock.weightAvoidObstacles;
+                                    autonomousList[i].TargetDirection.Normalize();
+                                }
                             }
                         }
                     }
+                    //yield return null;
                 }
-                //yield return null;
+                yield return null;
             }
-            yield return null;
         }
     }
     IEnumerator Coroutine_Random_Motion_Obstacles()
@@ -559,8 +623,8 @@ public class FlockBehaviour : MonoBehaviour
             }
             else
             {
-                Parallel.For(0, autonomousList.Count, i => 
-                { 
+                Parallel.For(0, autonomousList.Count, i =>
+                {
                     Vector3 pos = autonomousList[i].pos;
                     if (autonomousList[i].pos.x > bounds_maxX)
                     {
@@ -606,39 +670,78 @@ public class FlockBehaviour : MonoBehaviour
             }
         }
     }
-    //containing the list of auto id and its cellkey
-    List<Entry> boids_SpatialLookup = new List<Entry>();
-    //using the cell key, get the value of element (cell id) to know where that list of auto that are in the same cell start
-    List<int> boids_StartIds = new List<int>();
-    //combine the list from both flocks to use as an argueent
 
-    List<Entry> enemies_SpatialLookup = new List<Entry>();
-    //using the cell key, get the value of element (cell id) to know where that list of auto that are in the same cell start
-    List<int> enemies_StartIds = new List<int>();
 
-    private (List<Entry> spatialLookup, List<int> startIds) UpdateSpatialLookup(List<Autonomous> autoList, List<Entry> spatialLookup, List<int> startIds, float radius)
+    //for the 3x3 
+    private List<(int, int)> cellOfOffsets = new List<(int, int)>
     {
+        (0, 0),  // Center cell
+        (0, 1),  // North
+        (0, -1), // South
+        (1, 0),  // East
+        (-1, 0), // West
+        (1, 1),  // Northeast
+        (-1, 1), // Northwest
+        (1, -1), // Southeast
+        (-1, -1) // Southwest
+    };
+
+    private List<int> NeighbouringBoidsFromPoint(Vector3 centrePos, Flock flock, List<Entry> spatialLookup, List<int> startIds)
+    {
+        List<int> neighbours = new List<int>();
+        //find cell that the sample point is in (this will be the centre of the 3x3)
+        (int centreCellX, int centreCellY) = PositionToCellCoord(centrePos, flocks[0].separationDistance);
+        foreach ((int offsetX, int offsetY) in cellOfOffsets)
+        {
+            uint key = GetHashCellKey(flock, HashCell(centreCellX + offsetX, centreCellY + offsetY));
+            if (key >= startIds.Count)
+            {
+                Debug.Log(key);
+            }
+            int cellStartId = startIds[(int)key];
+            for (int i = cellStartId; i < spatialLookup.Count; i++)
+            {
+                if (spatialLookup[i].hashCellKey != key) break;
+
+                neighbours.Add(spatialLookup[i].id);
+            }
+        }
+        return neighbours;
+    }
+
+    private (List<Entry> spatialLookup, List<int> startIds) UpdateSpatialLookup(Flock flock, List<Entry> spatialLookup, List<int> startIds)
+    {
+        //reseting the values
+        while (spatialLookup.Count <= flock.mAutonomous.Count)
+        {
+            spatialLookup.Add(new Entry(0, 0));
+        }
+        while (startIds.Count <= flock.mAutonomous.Count)
+        {
+            startIds.Add(int.MaxValue);
+        }
+
         //multithreading the tasks 
-        Parallel.For(0, autoList.Count, i =>
+        Parallel.For(0, flock.numBoids, i =>
         {
             //converting the world position to a cell id
-            (int cellX, int cellY) = PositionToCellCoord(autoList[i].pos, radius);
+            (int cellX, int cellY) = PositionToCellCoord(flock.mAutonomous[i].pos, flocks[0].separationDistance);
             //hash the cell id to get a hash cell key
             //cell Key must be non-negative
-            uint cellKey = GetHashCellKey(spatialLookup, HashCell(cellX, cellY));
+            uint hashCell = HashCell(cellX, cellY);
+            uint cellKey = GetHashCellKey(flock, hashCell);
             spatialLookup[i] = new Entry(i, cellKey);
-            //reset the values in the list of start indices
-            startIds[i] = int.MaxValue;
         });
 
         //sort by hashCellkey
         spatialLookup.Sort();
 
         //find the start indices and of each hashcellkey in the spatial lookup
-        Parallel.For(0, autoList.Count, i =>
+        Parallel.For(0, flock.numBoids, i =>
         {
             uint key = spatialLookup[i].hashCellKey;
             uint keyPrev = i == 0 ? uint.MaxValue : spatialLookup[i - 1].hashCellKey;
+
             if (key != keyPrev)
             {
                 startIds[(int)key] = i;
@@ -664,21 +767,21 @@ public class FlockBehaviour : MonoBehaviour
         return a + b;
     }
 
-    private uint GetHashCellKey(List<Entry> spatialLookup, uint hashCell)
+    private uint GetHashCellKey(Flock flock, uint hashCell)
     {
-        return hashCell % (uint)spatialLookup.Count;
+        return hashCell % (uint)flock.numBoids;
     }
 
 }
 
 internal class Entry : IComparable<Entry>
 {
-    public int i;
+    public int id;
     public uint hashCellKey;
 
-    public Entry(int i, uint hashCellKey)
+    public Entry(int id, uint hashCellKey)
     {
-        this.i = i;
+        this.id = id;
         this.hashCellKey = hashCellKey;
     }
     public int CompareTo(Entry other)
