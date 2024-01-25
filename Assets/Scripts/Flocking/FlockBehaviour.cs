@@ -690,7 +690,7 @@ public class FlockBehaviour : MonoBehaviour
     {
         List<int> neighbours = new List<int>();
         //find cell that the sample point is in (this will be the centre of the 3x3)
-        (int centreCellX, int centreCellY) = PositionToCellCoord(centrePos, flocks[0].separationDistance);
+        (int centreCellX, int centreCellY) = PositionToCellCoord(centrePos, flocks[0].visibility);
         foreach ((int offsetX, int offsetY) in cellOfOffsets)
         {
             uint key = GetHashCellKey(flock, HashCell(centreCellX + offsetX, centreCellY + offsetY));
@@ -725,7 +725,7 @@ public class FlockBehaviour : MonoBehaviour
         Parallel.For(0, flock.numBoids, i =>
         {
             //converting the world position to a cell id
-            (int cellX, int cellY) = PositionToCellCoord(flock.mAutonomous[i].pos, flocks[0].separationDistance);
+            (int cellX, int cellY) = PositionToCellCoord(flock.mAutonomous[i].pos, flocks[0].visibility);
             //hash the cell id to get a hash cell key
             //cell Key must be non-negative
             uint hashCell = HashCell(cellX, cellY);
